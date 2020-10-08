@@ -11,7 +11,7 @@ static inline void initialize_bss(unsigned int* bss_start, unsigned int* bss_end
 static void default_handler() __attribute__((interrupt));
 static void    tim7_handler() __attribute__((interrupt));
 
-//these symbols are declared in the linker script
+
 extern unsigned int __data_start__;//start of .data section in RAM
 extern unsigned int __data_end__;//end of .data section in RAM
 extern unsigned int __bss_end__;//end of .bss section in RAM
@@ -19,10 +19,10 @@ extern unsigned int __text_end__;//end of .text section in ROM
 
 void* vectorTable[48] __attribute__(( section(".vectab,\"a\",%progbits@") )) =
   {
-    (void*)0x20003FFC,//initial main SP value (16kB RAM size)
-    (void*)&startup,//reset vector
-    (void*)&default_handler,//NMI
-    (void*)&default_handler,//HardFault
+    (void*)0x20003FFC,
+    (void*)&startup,
+    (void*)&default_handler,
+    (void*)&default_handler,
     (void*)0x00000000,//reserved
     (void*)0x00000000,//reserved
     (void*)0x00000000,//reserved
@@ -30,11 +30,11 @@ void* vectorTable[48] __attribute__(( section(".vectab,\"a\",%progbits@") )) =
     (void*)0x00000000,//reserved
     (void*)0x00000000,//reserved
     (void*)0x00000000,//reserved
-    (void*)&default_handler,//SVCall
+    (void*)&default_handler,
     (void*)0x00000000,//reserved
     (void*)0x00000000,//reserved
-    (void*)&default_handler,//PendSV
-    (void*)&default_handler,//SysTick
+    (void*)&default_handler,
+    (void*)&default_handler,
     (void*)0x00000000,//IRQ0
     (void*)0x00000000,//IRQ1
     (void*)0x00000000,//IRQ2
@@ -69,7 +69,7 @@ void* vectorTable[48] __attribute__(( section(".vectab,\"a\",%progbits@") )) =
     (void*)&usb_handler//IRQ31
   };
 
-//copies initialized static variable values from ROM to RAM
+
 static inline void initialize_data(unsigned int* from, unsigned int* data_start, unsigned int* data_end)
 {
   while(data_start < data_end)
@@ -80,7 +80,7 @@ static inline void initialize_data(unsigned int* from, unsigned int* data_start,
     }
 }
 
-//writes to zero uninitialized static variable values in RAM
+
 static inline void initialize_bss(unsigned int* bss_start, unsigned int* bss_end)
 {
   while(bss_start < bss_end)
@@ -90,52 +90,52 @@ static inline void initialize_bss(unsigned int* bss_start, unsigned int* bss_end
     }
 }
 
-//the very first function that the CPU will run
+
 static void startup()
 {
-  RCC->AHBENR |= (1<<18)|(1<<17)|(1<<0);//enable GPIOA, GPIOB, DMA clocks
-  RCC->APB1ENR |= (1<<5)|(1<<4)|(1<<0);//enable TIM7, TIM6, TIM2 clocks
-  RCC->APB2ENR |= (1<<12);//enable SPI1 clock
+  RCC->AHBENR |= (1<<18)|(1<<17)|(1<<0);
+  RCC->APB1ENR |= (1<<5)|(1<<4)|(1<<0);
+  RCC->APB2ENR |= (1<<12);
   
-  GPIOB->MODER |= (1<<22)|(1<<14)|(1<<2);//PB11, PB7, PB1 are outputs
-  GPIOB->BSRR = (1<<11)|(1<<1);//pull PB11, PB1 high (WP and SPI1 CS signals)  
-  GPIOA->MODER |= (1<<15)|(1<<13)|(1<<11)|(1<<6);//PA3 is output; PA7, PA6, PA5 are in alternate function mode (SPI1)
-  GPIOA->BSRR = (1<<3);//pull PA3 high (HOLD signal)
-  GPIOA->PUPDR |= (1<<4);//enable pullup at PA2
+  GPIOB->MODER |= (1<<22)|(1<<14)|(1<<2);
+  GPIOB->BSRR = (1<<11)|(1<<1);  
+  GPIOA->MODER |= (1<<15)|(1<<13)|(1<<11)|(1<<6);
+  GPIOA->BSRR = (1<<3);
+  GPIOA->PUPDR |= (1<<4);
   
-  FLASH->ACR = (1<<4)|(1<<0);//enable prefetch buffer and insert 1 wait state for flash read access (because SYSCLK will be 48MHz)  
+  FLASH->ACR = (1<<4)|(1<<0); 
   
-  RCC->CR |= (1<<19)|(1<<16);//enable HSE clock, clock security system
-  while( !(RCC->CR & (1<<17)) );//wait until HSE is ready
-  RCC->CFGR |= (1<<20)|(1<<16);//derive PLL clock from HSE, multiply HSE by 6 (8MHz * 6 = 48MHz)
-  RCC->CR |= (1<<24);//enable PLL
+  RCC->CR |= (1<<19)|(1<<16);
+  while( !(RCC->CR & (1<<17)) );
+  RCC->CFGR |= (1<<20)|(1<<16);
+  RCC->CR |= (1<<24);
   
   initialize_data(&__text_end__, &__data_start__, &__data_end__);
   initialize_bss(&__data_end__, &__bss_end__);
   
-  while( !(RCC->CR & (1<<25)) );//wait until PLL is ready
-  RCC->CFGR |= (1<<1);//set PLL as system clock  
-  while( !((RCC->CFGR & 0x0F) == 0b1010) );//wait until PLL is used as system clock
-  RCC->CR &= ~(1<<0);//disable HSI clock
+  while( !(RCC->CR & (1<<25)) );
+  RCC->CFGR |= (1<<1); 
+  while( !((RCC->CFGR & 0x0F) == 0b1010) );
+  RCC->CR &= ~(1<<0);
   
   main();
   
-  NVIC_SystemReset();//if main() ever returns reset MCU
+  NVIC_SystemReset();
   return;
 }
 
-//default IRQ handler initiates system reset
+
 static void default_handler()
 {
   NVIC_SystemReset();
   return;
 }
 
-//TIM7 is used for driving flash memory status LED
+
 static void tim7_handler()
 {
-  GPIOB->BSRR = (1<<23);//turn the status LED off
-  TIM7->SR = 0;//clear the overflow interrupt flag
+  GPIOB->BSRR = (1<<23);
+  TIM7->SR = 0;
   
   return;
 }
